@@ -1,5 +1,6 @@
 from __future__ import absolute_import
 
+import os
 import argparse
 import sys
 import logging
@@ -7,6 +8,7 @@ import yaml
 import shutil
 import tempfile
 import dnf
+import dnf.repo
 import dnf.callback
 
 log = logging.getLogger(__name__)
@@ -81,11 +83,16 @@ class Salmon(object):
             default=False,
             help="Show extra output"
         )
-        if argv:
-            self.args = parser.parse_args(argv)
-        else:
+        parser.add_argument(
+            "--destination",
+            default=None,
+            help="Destination directory"
+        )
+        if not argv:
             # This case is really just meant for when the class is instantiated for unit tests.
-            self.args = argparse.Namespace()
+            argv = ""
+
+        self.args = parser.parse_args(argv)
 
     def run(self):
         if self.args.verbose:
@@ -93,8 +100,9 @@ class Salmon(object):
 
         config = yaml.load(self.args.manifest)
         log.info("Config is %s" % config)
-        self.validate_config(config)
-        self.dnf_temp_cache = tempfile.mkdtemp(prefix="salmon_")
+
+        self.config = self.validate_config(config)
+        self.dnf_temp_cache = tempfile.mkdtemp(prefix="salmon_dnf_cache_")
 
         try:
             dnf_base = self.build_dnf(config)
@@ -107,7 +115,6 @@ class Salmon(object):
     def build_dnf(self, config):
         dnf_base = dnf.Base()
 
-        # Disable everything to start
         for repo in dnf_base.repos.all():
             repo.disable()
 
@@ -117,15 +124,18 @@ class Salmon(object):
             repo.id = name
             for opt, val in repo_opts.items():
                 setattr(repo, opt, val)
+            repo.load()
             dnf_base.repos.add(repo)
             log.debug("Defined repo %s" % repo.id)
+
+        # Do not consider *anything* to be installed
+        dnf_base.fill_sack(load_system_repo=False, load_available_repos=True)
 
         return dnf_base
 
     def run_dnf(self, dnf_base, config):
         dnf_base.conf.installroot = config['destination']
-        # Do not consider *anything* to be installed
-        dnf_base.fill_sack(load_system_repo=False)
+
         for p in config['packages']:
             dnf_base.install(p)
 
@@ -133,7 +143,7 @@ class Salmon(object):
         if resolution:
             to_fetch = [p.installed for p in dnf_base.transaction]
             dnf_base.download_packages(to_fetch, Progress())
-            print(dnf_base.do_transaction())
+            dnf_base.do_transaction()
         else:
             raise RuntimeError("DNF depsolving failed.")
 
@@ -149,7 +159,17 @@ class Salmon(object):
         if len(config['repos']) == 0:
             errors.append("No repos are defined")
 
+        if self.args.destination:
+            path = os.path.normpath(os.path.expanduser(self.args.destination))
+            if os.access(path, os.W_OK):
+                config['destination'] = path
+                log.info("Using destination '%s' from the command line" % self.args.destination)
+            else:
+                errors.append("Cannot write to directory %s" % path)
+
         if errors:
             error_string = "\n".join(errors)
             raise RuntimeError(error_string)
+
+        return config
 
