@@ -3,15 +3,16 @@ from __future__ import absolute_import
 
 import os
 import unittest
-import salmon
+import salmon.main as main
 import logging
+import argparse
 
 logging.basicConfig(level=logging.DEBUG, format="%(levelname)5s [%(name)s:%(lineno)s] %(message)s")
 logger = logging.getLogger('')
 logger.setLevel(logging.INFO)
 
 
-class SalmonConfig(unittest.TestCase):
+class BuildCommandTest(unittest.TestCase):
     def setUp(self):
         self.good_config = {
             'repos': {
@@ -23,27 +24,34 @@ class SalmonConfig(unittest.TestCase):
             'name': 'RHEL7_2-base',
             'packages': ['systemd', 'passwd', 'vim-minimal', 'redhat-release', 'yum']
         }
+        self.dummy_parser = argparse.ArgumentParser()
 
     def test_validate_required_with_missing_sections(self):
-        s = salmon.Salmon()
+        c = main.BuildCommand.get_instance(self.dummy_parser.add_subparsers())
+        args = self.dummy_parser.parse_args(['build'])
+
         bad_config = {'repos': {}, 'destination': ''}
         with self.assertRaises(RuntimeError):
-            s.validate_config(bad_config)
+            c(args).validate_config(bad_config)
 
     def test_validate_required_with_missing_repos(self):
-        s = salmon.Salmon()
+        c = main.BuildCommand.get_instance(self.dummy_parser.add_subparsers())
+        args = self.dummy_parser.parse_args(['build'])
+
         bad_config = {'repos': {}, 'destination': '', 'name': '', 'packages': []}
         with self.assertRaisesRegexp(RuntimeError, 'No repos'):
-            s.validate_config(bad_config)
+            c(args).validate_config(bad_config)
 
     def test_validate_required_with_good_config(self):
-        s = salmon.Salmon()
-        s.validate_config(self.good_config)
+        c = main.BuildCommand.get_instance(self.dummy_parser.add_subparsers())
+        args = self.dummy_parser.parse_args(['build'])
+
+        c(args).validate_config(self.good_config)
 
     def test_cli_overrides_config_destination(self):
-        args = ['--destination', os.getcwd()]
-        s = salmon.Salmon(args)
-        result_config = s.validate_config(self.good_config)
+        args = ['build', '--destination', os.getcwd()]
+        s = main.Salmon(args)
+        result_config = s.build_command.validate_config(self.good_config)
         self.assertEqual(os.getcwd(), result_config['destination'])
 
 

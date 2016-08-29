@@ -35,7 +35,12 @@ a repo ID and then underneath that repo ID, you may define any option that DNF
 will recognize (e.g. `gpgcheck`).  Note that these repo definitions are **not**
 currently written into the container.
 
-## Command Line Options
+## Subcommands
+
+Salmon is made up of sub-commands.  Currently the only sub-command is `build`
+but more are planned.
+
+### `Build` Options
 
 * `--verbose`: print additional debugging information
 * `--destination`: replace the destination given in the manifest file.  Useful
@@ -44,7 +49,7 @@ currently written into the container.
 ## Examples
 
 ```
-% sudo ./salmon.py --destination $(mktemp -d /tmp/salmon_dest_XXXX) sample_manifest.yaml
+% sudo ./salmon.py build --destination $(mktemp -d /tmp/salmon_dest_XXXX) sample-manifest.yaml
 ```
 
 The above example will bootstrap a container into a temporary directory based on

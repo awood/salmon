@@ -1,6 +1,7 @@
 from __future__ import absolute_import
 
 import os
+import abc
 import argparse
 import sys
 import logging
@@ -10,6 +11,7 @@ import tempfile
 import dnf
 import dnf.repo
 import dnf.callback
+from IPython.lib.pretty import _super_pprint
 
 log = logging.getLogger(__name__)
 
@@ -66,10 +68,53 @@ class Progress(dnf.callback.DownloadProgress):
         sys.stdout.write("Progress: %02d%% (%d/%d)\r" % (self.last_pct, self.download_files, self.total_files))
 
 
-# Simple tool to bootstrap a SystemD Nspawn container
 class Salmon(object):
     def __init__(self, argv=None):
-        parser = argparse.ArgumentParser(description="Create an nspawn container")
+        parser = argparse.ArgumentParser(description="nspawn container tools")
+        subparsers = parser.add_subparsers(
+            title="subcommands",
+            description="valid subcommands",
+            help='subcommand help',
+            dest='subcommand'
+        )
+
+        # Create an instance of each subcommand with a populated subparser
+        # The indirection here is primarily aimed at ensuring that the subcommand
+        # is populated with the argparser.Namespace object before attempting to
+        # run.  Without the factory pattern, we would need manually inject the
+        # args object into each subcommand instance.  Although this pattern is
+        # esoteric, I deemed it better than setting attributes on classes externally
+        # or dealing with bugs where the args object was not injected properly.
+        self.build_class = BuildCommand.get_instance(subparsers)
+
+        self.args = parser.parse_args(argv)
+
+        # Populate the factory generated subcommand classes with the results
+        # from the argument parser
+        self.build = self.build_class(self.args)
+
+    def run(self):
+        # Get the attribute containing the factory generated class and invoke run()
+        getattr(self, self.args.subcommand).run()
+
+
+class BaseCommand(object):
+    """BaseCommand inheritors should also implement a classmethod get_instance that is
+    responsible for building the subparser used to parse the subcommand's arguments."""
+    __metaclass__ = abc.ABCMeta
+
+    def __init__(self, subparsers):
+        pass
+
+    @abc.abstractmethod
+    def run(self):
+        pass
+
+
+class BuildCommand(BaseCommand):
+    @classmethod
+    def get_instance(cls, subparsers):
+        parser = subparsers.add_parser('build', help='build an nspawn container')
         parser.add_argument(
             "manifest",
             nargs="?",
@@ -88,11 +133,11 @@ class Salmon(object):
             default=None,
             help="Destination directory"
         )
-        if not argv:
-            # This case is really just meant for when the class is instantiated for unit tests.
-            argv = ""
+        return cls
 
-        self.args = parser.parse_args(argv)
+    def __init__(self, args):
+        super(BaseCommand, self).__init__()
+        self.args = args
 
     def run(self):
         if self.args.verbose:
