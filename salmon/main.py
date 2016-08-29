@@ -14,6 +14,7 @@ import subprocess
 import dnf
 import dnf.repo
 import dnf.callback
+import dnf.yum.config
 
 log = logging.getLogger(__name__)
 
@@ -121,7 +122,7 @@ class BaseCommand(object):
 
     def validate_config(self, raw_config):
         config = copy.deepcopy(raw_config)
-        required_top_options = {'name', 'destination', 'repos', 'packages', 'as_subvolume'}
+        required_top_options = {'name', 'destination', 'repos', 'packages', 'subvolume'}
         top_options = set(config.keys())
 
         errors = []
@@ -168,7 +169,7 @@ class DeleteCommand(BaseCommand):
         super(DeleteCommand, self).__init__(args)
 
     def validate_subcommand_config(self, args, config, errors):
-        if not config['as_subvolume']:
+        if not config['subvolume']:
             errors.append("'delete' can only be used with containers that are subvolumes")
         return errors
 
@@ -205,6 +206,22 @@ class BuildCommand(BaseCommand):
             default=None,
             help="Destination directory"
         )
+
+        subvolume_group = parser.add_mutually_exclusive_group()
+        subvolume_group.add_argument(
+            "--subvolume",
+            action="store_true",
+            dest="subvolume",
+            default=None,
+            help="Use a btrfs subvolume for this container"
+        )
+        subvolume_group.add_argument(
+            "--no-subvolume",
+            action="store_false",
+            dest="subvolume",
+            default=None,
+            help="Do not use a btrfs subvolume for this container"
+        )
         return cls
 
     def __init__(self, args):
@@ -218,24 +235,31 @@ class BuildCommand(BaseCommand):
                 log.info("Using destination '%s' from the command line" % args.destination)
             else:
                 errors.append("Cannot write to directory %s" % path)
+
+        if args.subvolume is not None:
+            config['subvolume'] = args.subvolume
+            log.info("Using subvolume '%s' from the command line" % args.subvolume)
+
         return errors
 
     def run(self):
         super(BuildCommand, self).run()
         self.dnf_temp_cache = tempfile.mkdtemp(prefix="salmon_dnf_cache_")
+        self.container_dir = os.path.join(self.config['destination'], self.config['name'])
 
-        if self.config['as_subvolume']:
+        if self.config['subvolume']:
             # Not a huge fan of shelling out, but didn't see any mature Python Btrfs bindings
-            cmd = [
-                'btrfs', 'subvolume', 'create', os.path.join(self.config['destination'], self.config['name'])
-            ]
+            cmd = ['btrfs', 'subvolume', 'create', self.container_dir]
 
             output = subprocess.check_output(cmd)
             log.info("%s returned %s" % (" ".join(cmd), output))
+        else:
+            os.mkdir(self.container_dir)
 
         try:
             dnf_base = self.build_dnf(self.config)
             self.run_dnf(dnf_base, self.config)
+            self.post_dnf_run(dnf_base, self.config)
         finally:
             shutil.rmtree(self.dnf_temp_cache)
 
@@ -247,12 +271,15 @@ class BuildCommand(BaseCommand):
         for repo in dnf_base.repos.all():
             repo.disable()
 
-        for name, repo_opts in config['repos'].items():
-            repo = dnf.repo.Repo(name, self.dnf_temp_cache)
+        for repo_id, repo_opts in config['repos'].items():
+            repo = dnf.repo.Repo(repo_id, self.dnf_temp_cache)
             repo.enable()
-            repo.id = name
             for opt, val in repo_opts.items():
+                # Inject is a custom option and DNF won't recognize it
+                if opt == "inject":
+                    continue
                 setattr(repo, opt, val)
+
             repo.load()
             dnf_base.repos.add(repo)
             log.debug("Defined repo %s" % repo.id)
@@ -263,7 +290,7 @@ class BuildCommand(BaseCommand):
         return dnf_base
 
     def run_dnf(self, dnf_base, config):
-        dnf_base.conf.installroot = config['destination']
+        dnf_base.conf.installroot = self.container_dir
 
         for p in config['packages']:
             dnf_base.install(p)
@@ -275,3 +302,14 @@ class BuildCommand(BaseCommand):
             dnf_base.do_transaction()
         else:
             raise RuntimeError("DNF depsolving failed.")
+
+    def post_dnf_run(self, dnf_base, config):
+        injected_repos = [
+            dnf_base.repos[repo_id] for repo_id, repo_opts in config['repos'].items() if repo_opts.get('inject', False)
+        ]
+
+        # TODO: dump() results in pretty ugly output since it creates lines for *all* repo options.
+        output = "\n".join([x.dump() for x in injected_repos])
+        with open(os.path.join(self.container_dir, 'etc', 'yum.repos.d', 'salmon.repo'), 'w') as f:
+            log.debug("Writing %s" % output)
+            f.write(output)

@@ -23,7 +23,7 @@ class BuildCommandTest(unittest.TestCase):
             'destination': '/var/lib/machines',
             'name': 'CentOS_7_2-base',
             'packages': ['systemd', 'passwd', 'vim-minimal', 'redhat-release', 'yum'],
-            'as_subvolume': True,
+            'subvolume': True,
         }
         self.dummy_parser = argparse.ArgumentParser()
 
@@ -55,6 +55,24 @@ class BuildCommandTest(unittest.TestCase):
         result_config = s.build.validate_config(self.good_config)
         self.assertEqual(os.getcwd(), result_config['destination'])
 
+    def test_cli_overrides_config_subvolume_to_true(self):
+        args = ['build', '--subvolume']
+        s = main.Salmon(args)
+        self.good_config['subvolume'] = False
+        result_config = s.build.validate_config(self.good_config)
+        self.assertEqual(True, result_config['subvolume'])
+
+    def test_cli_overrides_config_subvolume_to_false(self):
+        args = ['build', '--no-subvolume']
+        s = main.Salmon(args)
+        result_config = s.build.validate_config(self.good_config)
+        self.assertEqual(False, result_config['subvolume'])
+
+    def test_subvolume_options_mutually_exclusive(self):
+        args = ['build', '--no-subvolume', '--subvolume']
+        with self.assertRaises(SystemExit):
+            s = main.Salmon(args)
+
 
 class DeleteCommandTest(unittest.TestCase):
     def setUp(self):
@@ -67,7 +85,7 @@ class DeleteCommandTest(unittest.TestCase):
             'destination': '/var/lib/machines',
             'name': 'CentOS_7_2-base',
             'packages': ['systemd', 'passwd', 'vim-minimal', 'redhat-release', 'yum'],
-            'as_subvolume': False,
+            'subvolume': False,
         }
         self.dummy_parser = argparse.ArgumentParser()
 

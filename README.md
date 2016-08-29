@@ -28,15 +28,17 @@ The file is in YAML and has four top-level settings:
 
 * `name`: the name to use for this container
 * `destination`: the file path that the container will be written to
-* `as_subvolume`: instructs Salmon to create a Btrfs sub-volume for this
+* `subvolume`: instructs Salmon to create a Btrfs sub-volume for this
   container
 * `repos`: DNF repo definitions to pull content from
 * `packages`: packages to install into the container.
 
 The `repos` section can have multiple sub-sections.  Each sub-section should be 
 a repo ID and then underneath that repo ID, you may define any option that DNF
-will recognize (e.g. `gpgcheck`).  Note that these repo definitions are **not**
-currently written into the container.
+will recognize (e.g. `gpgcheck`).  You may also define an option `inject` which
+will cause Salmon to write that repo definition into a file within the
+container.  `inject` is useful if you want to have internal repos available from
+the start, for example.
 
 ## Subcommands
 
@@ -49,7 +51,9 @@ Options:
 
 * `--verbose`: print additional debugging information
 * `--destination`: replace the destination given in the manifest file.  Useful
-  for ad hoc tests.
+  for ad hoc tests
+* `--[no-]subvolume`: override whether the manifest file should use a btrfs
+  subvolume or not
 
 Arguments:
 

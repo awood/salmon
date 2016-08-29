@@ -1,6 +1,6 @@
-name: "CentOS7_2-base"
+name: "CentOS_7_2-base"
 destination: "/var/lib/machines"
-as_subvolume: true
+subvolume: true
 
 repos:
   centos7_2:
