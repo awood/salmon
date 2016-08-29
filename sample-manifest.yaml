@@ -1,0 +1,14 @@
+name: "CentOS7_2-base"
+# destination: "/var/lib/machines"
+destination: "/tmp/salmon_test"
+
+repos:
+  centos7_2:
+    baseurl: "http://mirror.centos.org/centos/7.2.1511/os/x86_64"
+
+packages:
+  - systemd
+  - passwd
+  - vim-minimal
+  - redhat-release
+  - yum
