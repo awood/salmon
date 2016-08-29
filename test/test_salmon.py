@@ -16,13 +16,14 @@ class BuildCommandTest(unittest.TestCase):
     def setUp(self):
         self.good_config = {
             'repos': {
-                'rhel7_2': {
-                    'url': 'http://download.eng.rdu2.redhat.com/released/RHEL-7/7.2/Server/x86_64/os/'
+                'centos_7_2': {
+                    'url': 'http://example.com'
                 }
             },
             'destination': '/var/lib/machines',
-            'name': 'RHEL7_2-base',
-            'packages': ['systemd', 'passwd', 'vim-minimal', 'redhat-release', 'yum']
+            'name': 'CentOS_7_2-base',
+            'packages': ['systemd', 'passwd', 'vim-minimal', 'redhat-release', 'yum'],
+            'as_subvolume': True,
         }
         self.dummy_parser = argparse.ArgumentParser()
 
@@ -54,6 +55,28 @@ class BuildCommandTest(unittest.TestCase):
         result_config = s.build.validate_config(self.good_config)
         self.assertEqual(os.getcwd(), result_config['destination'])
 
+
+class DeleteCommandTest(unittest.TestCase):
+    def setUp(self):
+        self.no_subvolume_config = {
+            'repos': {
+                'centos_7_2': {
+                    'url': 'http://example.com'
+                }
+            },
+            'destination': '/var/lib/machines',
+            'name': 'CentOS_7_2-base',
+            'packages': ['systemd', 'passwd', 'vim-minimal', 'redhat-release', 'yum'],
+            'as_subvolume': False,
+        }
+        self.dummy_parser = argparse.ArgumentParser()
+
+    def test_command_fails_fast_on_nonsubvolumes(self):
+        c = main.DeleteCommand.get_instance(self.dummy_parser.add_subparsers())
+        args = self.dummy_parser.parse_args(['delete'])
+
+        with self.assertRaisesRegexp(RuntimeError, 'only be used with containers that are subvolumes'):
+            c(args).validate_config(self.no_subvolume_config)
 
 if __name__ == "__main__":
     unittest.main(module="salmon")

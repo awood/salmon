@@ -10,6 +10,7 @@ Let's look at an example
 ```yaml
 name: "CentOS7_2-base"
 destination: "/var/lib/machines"
+as_subvolume: True
 
 repos:
   centos7_2:
@@ -27,6 +28,8 @@ The file is in YAML and has four top-level settings:
 
 * `name`: the name to use for this container
 * `destination`: the file path that the container will be written to
+* `as_subvolume`: instructs Salmon to create a Btrfs sub-volume for this
+  container
 * `repos`: DNF repo definitions to pull content from
 * `packages`: packages to install into the container.
 
@@ -40,11 +43,33 @@ currently written into the container.
 Salmon is made up of sub-commands.  Currently the only sub-command is `build`
 but more are planned.
 
-### `Build` Options
+### `Build` Subcommand
+
+Options: 
 
 * `--verbose`: print additional debugging information
 * `--destination`: replace the destination given in the manifest file.  Useful
   for ad hoc tests.
+
+Arguments:
+
+* manifest file
+
+This command builds an nspawn container based on the configuration in the
+manifest.
+
+### `Delete` Subcommand
+
+Options:
+
+* `--verbose`: print additional debugging information
+
+Arguments:
+
+* manifest file
+
+This command deletes the subvolume that the manifest file points to.  Note that
+this command will not work if manifest does not actually use a subvolume.
 
 ## Examples
 

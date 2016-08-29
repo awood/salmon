@@ -6,8 +6,11 @@ import argparse
 import sys
 import logging
 import yaml
+import copy
 import shutil
 import tempfile
+import subprocess
+
 import dnf
 import dnf.repo
 import dnf.callback
@@ -85,6 +88,7 @@ class Salmon(object):
         # esoteric, I deemed it better than setting attributes on classes externally
         # or dealing with bugs where the args object was not injected properly.
         self.build_class = BuildCommand.get_instance(subparsers)
+        self.delete_class = DeleteCommand.get_instance(subparsers)
 
         self.args = parser.parse_args(argv)
 
@@ -92,6 +96,7 @@ class Salmon(object):
         # from the argument parser.  These attributes need to match the name
         # the subparser registers.
         self.build = self.build_class(self.args)
+        self.delete = self.delete_class(self.args)
 
     def run(self):
         # Get the attribute containing the factory generated class and invoke run()
@@ -103,12 +108,79 @@ class BaseCommand(object):
     responsible for building the subparser used to parse the subcommand's arguments."""
     __metaclass__ = abc.ABCMeta
 
-    def __init__(self, subparsers):
-        pass
+    def __init__(self, args):
+        self.args = args
+        if hasattr(self.args, 'verbose') and self.args.verbose:
+            log.setLevel(logging.DEBUG)
 
     @abc.abstractmethod
     def run(self):
+        raw_config = yaml.load(self.args.manifest)
+        log.info("Config is %s" % raw_config)
+        self.config = self.validate_config(raw_config)
+
+    def validate_config(self, raw_config):
+        config = copy.deepcopy(raw_config)
+        required_top_options = {'name', 'destination', 'repos', 'packages', 'as_subvolume'}
+        top_options = set(config.keys())
+
+        errors = []
+        errors.extend([
+            "Missing required config section %s" % s for s in required_top_options.difference(top_options)
+        ])
+
+        if len(config['repos']) == 0:
+            errors.append("No repos are defined")
+
+        self.validate_subcommand_config(self.args, config, errors)
+
+        if errors:
+            error_string = "\n".join(errors)
+            raise RuntimeError(error_string)
+
+        return config
+
+    @abc.abstractmethod
+    def validate_subcommand_config(self, args, config, errors):
         pass
+
+
+class DeleteCommand(BaseCommand):
+    @classmethod
+    def get_instance(cls, subparsers):
+        parser = subparsers.add_parser('delete', help='delete a container (must be a subvolume)')
+        parser.add_argument(
+            "manifest",
+            nargs="?",
+            type=argparse.FileType('r'),
+            default=sys.stdin,
+            help="Manifest file"
+        )
+        parser.add_argument(
+            "--verbose",
+            action="store_true",
+            default=False,
+            help="Show extra output"
+        )
+        return cls
+
+    def __init__(self, args):
+        super(DeleteCommand, self).__init__(args)
+
+    def validate_subcommand_config(self, args, config, errors):
+        if not config['as_subvolume']:
+            errors.append("'delete' can only be used with containers that are subvolumes")
+        return errors
+
+    def run(self):
+        super(DeleteCommand, self).run()
+
+        cmd = [
+            'btrfs', 'subvolume', 'delete', os.path.join(self.config['destination'], self.config['name'])
+        ]
+
+        output = subprocess.check_output(cmd)
+        log.info("%s returned %s" % (" ".join(cmd), output))
 
 
 class BuildCommand(BaseCommand):
@@ -136,22 +208,34 @@ class BuildCommand(BaseCommand):
         return cls
 
     def __init__(self, args):
-        super(BaseCommand, self).__init__()
-        self.args = args
+        super(BuildCommand, self).__init__(args)
+
+    def validate_subcommand_config(self, args, config, errors):
+        if args.destination:
+            path = os.path.normpath(os.path.expanduser(args.destination))
+            if os.access(path, os.W_OK):
+                config['destination'] = path
+                log.info("Using destination '%s' from the command line" % args.destination)
+            else:
+                errors.append("Cannot write to directory %s" % path)
+        return errors
 
     def run(self):
-        if self.args.verbose:
-            log.setLevel(logging.DEBUG)
-
-        config = yaml.load(self.args.manifest)
-        log.info("Config is %s" % config)
-
-        self.config = self.validate_config(config)
+        super(BuildCommand, self).run()
         self.dnf_temp_cache = tempfile.mkdtemp(prefix="salmon_dnf_cache_")
 
+        if self.config['as_subvolume']:
+            # Not a huge fan of shelling out, but didn't see any mature Python Btrfs bindings
+            cmd = [
+                'btrfs', 'subvolume', 'create', os.path.join(self.config['destination'], self.config['name'])
+            ]
+
+            output = subprocess.check_output(cmd)
+            log.info("%s returned %s" % (" ".join(cmd), output))
+
         try:
-            dnf_base = self.build_dnf(config)
-            self.run_dnf(dnf_base, config)
+            dnf_base = self.build_dnf(self.config)
+            self.run_dnf(dnf_base, self.config)
         finally:
             shutil.rmtree(self.dnf_temp_cache)
 
@@ -191,29 +275,3 @@ class BuildCommand(BaseCommand):
             dnf_base.do_transaction()
         else:
             raise RuntimeError("DNF depsolving failed.")
-
-    def validate_config(self, config):
-        required_top_options = {'name', 'destination', 'repos', 'packages'}
-        top_options = set(config.keys())
-
-        errors = []
-        errors.extend([
-            "Missing required config section %s" % s for s in required_top_options.difference(top_options)
-        ])
-
-        if len(config['repos']) == 0:
-            errors.append("No repos are defined")
-
-        if self.args.destination:
-            path = os.path.normpath(os.path.expanduser(self.args.destination))
-            if os.access(path, os.W_OK):
-                config['destination'] = path
-                log.info("Using destination '%s' from the command line" % self.args.destination)
-            else:
-                errors.append("Cannot write to directory %s" % path)
-
-        if errors:
-            error_string = "\n".join(errors)
-            raise RuntimeError(error_string)
-
-        return config
