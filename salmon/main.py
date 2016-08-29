@@ -90,7 +90,8 @@ class Salmon(object):
         self.args = parser.parse_args(argv)
 
         # Populate the factory generated subcommand classes with the results
-        # from the argument parser
+        # from the argument parser.  These attributes need to match the name
+        # the subparser registers.
         self.build = self.build_class(self.args)
 
     def run(self):

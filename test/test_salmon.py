@@ -51,7 +51,7 @@ class BuildCommandTest(unittest.TestCase):
     def test_cli_overrides_config_destination(self):
         args = ['build', '--destination', os.getcwd()]
         s = main.Salmon(args)
-        result_config = s.build_command.validate_config(self.good_config)
+        result_config = s.build.validate_config(self.good_config)
         self.assertEqual(os.getcwd(), result_config['destination'])
 
 
