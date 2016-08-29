@@ -7,6 +7,8 @@ install_requires = [
 
 tests_require = install_requires + [
     'mock',
+    'nose',
+    'coverage',
 ]
 
 setup(
@@ -23,4 +25,5 @@ setup(
     ],
     tests_require=tests_require,
     install_requires=install_requires,
+    test_suite='nose.collector',
 )

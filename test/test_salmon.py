@@ -71,7 +71,7 @@ class BuildCommandTest(unittest.TestCase):
     def test_subvolume_options_mutually_exclusive(self):
         args = ['build', '--no-subvolume', '--subvolume']
         with self.assertRaises(SystemExit):
-            s = main.Salmon(args)
+            main.Salmon(args)
 
 
 class DeleteCommandTest(unittest.TestCase):

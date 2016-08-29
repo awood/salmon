@@ -5,6 +5,7 @@ __pycache__/
 
 .idea/
 internal/
+cover/
 
 # C extensions
 *.so
