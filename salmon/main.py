@@ -11,7 +11,6 @@ import tempfile
 import dnf
 import dnf.repo
 import dnf.callback
-from IPython.lib.pretty import _super_pprint
 
 log = logging.getLogger(__name__)
 
@@ -34,7 +33,7 @@ class Progress(dnf.callback.DownloadProgress):
         self.download_files = 0
         self.download_size = 0.0
 
-    def end(self,payload, status, msg):
+    def end(self, payload, status, msg):
         if not status:
             # payload download complete
             self.download_files += 1
@@ -218,4 +217,3 @@ class BuildCommand(BaseCommand):
             raise RuntimeError(error_string)
 
         return config
-

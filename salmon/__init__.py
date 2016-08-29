@@ -1,1 +1,1 @@
-from salmon.main import Salmon  #NOQA
+from salmon.main import Salmon  # NOQA
