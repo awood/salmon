@@ -118,11 +118,11 @@ class BaseCommand(object):
         raw_config = yaml.load(self.args.manifest)
         log.info("Config is %s" % raw_config)
         self.config = self.validate_config(raw_config)
-        self.do_command()
+        return self.do_command()
 
     @abc.abstractmethod
     def do_command(self):
-        pass
+        return 0
 
     def validate_config(self, raw_config):
         config = copy.deepcopy(raw_config)

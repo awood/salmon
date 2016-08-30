@@ -7,6 +7,7 @@ import salmon.main as main
 import logging
 import argparse
 import tempfile
+import contextlib
 import mock
 import dnf
 import shutil
@@ -119,6 +120,42 @@ class BuildCommandTest(unittest.TestCase):
             cmd_instance.container_dir = '/does/not/exist'
             cmd_instance.post_dnf_run(dnf_base, self.good_config)
             self.assertEqual([], m.mock_calls)
+
+    def test_creates_subvolume(self):
+        args = self.dummy_parser.parse_args(['build'])
+        cmd_instance = self.cmd_class(args)
+        cmd_instance.config = self.good_config
+
+        # stub out all the subsequent methods that actually do work
+        with mock.patch('subprocess.check_output') as mock_subprocess, \
+            mock.patch.object(main.BuildCommand, 'build_dnf'), \
+            mock.patch.object(main.BuildCommand, 'run_dnf'), \
+            mock.patch.object(main.BuildCommand, 'post_dnf_run'):
+
+            mock_subprocess.return_value = "OK"
+            cmd_instance.do_command()
+
+        subvolume_name = os.path.join(self.good_config['destination'], self.good_config['name'])
+        expected_calls = [mock.call(['btrfs', 'subvolume', 'create', subvolume_name])]
+        self.assertEqual(expected_calls, mock_subprocess.mock_calls)
+
+    def test_creates_directory(self):
+        args = self.dummy_parser.parse_args(['build'])
+        cmd_instance = self.cmd_class(args)
+        self.good_config['subvolume'] = False
+        cmd_instance.config = self.good_config
+
+        # tempfile.mkdtemp uses os.mkdir under the covers so we need to stub out
+        # salmon's attempt to clean up the temp directory it creates.
+        with mock.patch('os.mkdir') as mock_mkdir, \
+            mock.patch.object(main.BuildCommand, 'build_dnf'), \
+            mock.patch.object(main.BuildCommand, 'run_dnf'), \
+            mock.patch.object(main.BuildCommand, 'post_dnf_run'), \
+            mock.patch('shutil.rmtree'):
+            cmd_instance.do_command()
+
+        directory_name = os.path.join(self.good_config['destination'], self.good_config['name'])
+        mock_mkdir.assert_called_with(directory_name)
 
 class DeleteCommandTest(unittest.TestCase):
     def setUp(self):
