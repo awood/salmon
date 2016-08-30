@@ -7,6 +7,8 @@ import salmon.main as main
 import logging
 import argparse
 
+import mock
+
 logging.basicConfig(level=logging.DEBUG, format="%(levelname)5s [%(name)s:%(lineno)s] %(message)s")
 logger = logging.getLogger('')
 logger.setLevel(logging.INFO)
@@ -76,7 +78,11 @@ class BuildCommandTest(unittest.TestCase):
 
 class DeleteCommandTest(unittest.TestCase):
     def setUp(self):
-        self.no_subvolume_config = {
+        self.dummy_parser = argparse.ArgumentParser()
+        self.cmd_class = main.DeleteCommand.get_instance(self.dummy_parser.add_subparsers())
+
+    def test_command_fails_fast_on_nonsubvolumes(self):
+        no_subvolume_config = {
             'repos': {
                 'centos_7_2': {
                     'url': 'http://example.com'
@@ -84,17 +90,50 @@ class DeleteCommandTest(unittest.TestCase):
             },
             'destination': '/var/lib/machines',
             'name': 'CentOS_7_2-base',
-            'packages': ['systemd', 'passwd', 'vim-minimal', 'redhat-release', 'yum'],
+            'packages': [],
             'subvolume': False,
         }
-        self.dummy_parser = argparse.ArgumentParser()
-
-    def test_command_fails_fast_on_nonsubvolumes(self):
-        c = main.DeleteCommand.get_instance(self.dummy_parser.add_subparsers())
         args = self.dummy_parser.parse_args(['delete'])
 
-        with self.assertRaisesRegexp(RuntimeError, 'only be used with containers that are subvolumes'):
-            c(args).validate_config(self.no_subvolume_config)
+        with self.assertRaisesRegexp(RuntimeError, 'only be used with .* subvolumes'):
+            self.cmd_class(args).validate_config(no_subvolume_config)
+
+    @mock.patch('os.walk', autospec=True)
+    @mock.patch('os.stat', autospec=True)
+    @mock.patch('subprocess.check_output', autospec=True)
+    def test_do_command(self, mock_subprocess, mock_stat, mock_walk):
+        dummy_config = {
+            'destination': '/does/not',
+            'name': 'exist',
+        }
+
+        root = '/does/not/exist%s'
+        # We are asking os.walk to go depth-first
+        mock_walk.return_value = [
+            (root % '/top_btrfs/child_btrfs', [], []),
+            (root % '/top_btrfs/other', [], []),
+            (root % '/top_btrfs', ['child_btrfs', 'other'], []),
+            (root % '', ['top_btrfs'], []),
+        ]
+
+        def get_ino(*args):
+            d = args[0]
+            if 'btrfs' in os.path.basename(d):
+                return mock.NonCallableMock(st_ino=256)
+            return mock.NonCallableMock(st_ino=0)
+
+        mock_stat.side_effect = get_ino
+        mock_subprocess.return_value = "OK"
+
+        args = self.dummy_parser.parse_args(['delete'])
+        cmd_instance = self.cmd_class(args)
+        cmd_instance.config = dummy_config
+        cmd_instance.do_command()
+
+        expected_calls = []
+        for sub_dir in ['/top_btrfs/child_btrfs', '/top_btrfs', '']:
+            expected_calls.append(mock.call(['btrfs', 'subvolume', 'delete', root % sub_dir]))
+        self.assertEqual(expected_calls, mock_subprocess.mock_calls)
 
 if __name__ == "__main__":
     unittest.main(module="salmon")

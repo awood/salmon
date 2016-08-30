@@ -8,7 +8,6 @@ import logging
 import yaml
 import copy
 import shutil
-import collections
 import tempfile
 import subprocess
 
@@ -115,11 +114,15 @@ class BaseCommand(object):
         if hasattr(self.args, 'verbose') and self.args.verbose:
             log.setLevel(logging.DEBUG)
 
-    @abc.abstractmethod
     def run(self):
         raw_config = yaml.load(self.args.manifest)
         log.info("Config is %s" % raw_config)
         self.config = self.validate_config(raw_config)
+        self.do_command()
+
+    @abc.abstractmethod
+    def do_command(self):
+        pass
 
     def validate_config(self, raw_config):
         config = copy.deepcopy(raw_config)
@@ -174,7 +177,7 @@ class DeleteCommand(BaseCommand):
             errors.append("'delete' can only be used with containers that are subvolumes")
         return errors
 
-    def run(self):
+    def do_command(self):
         """Systemd itself checks during init, whether the device backing /var/lib/machines is btrfs, and if
         it is then it makes a subvolume for it.  This behavior results in two btrfs subvolumes: one for our
         container and one within our container for its /var/lib/machines.  As a result, we need to delete
@@ -184,20 +187,19 @@ class DeleteCommand(BaseCommand):
 
         See also http://stackoverflow.com/a/32865333
         """
-        super(DeleteCommand, self).run()
-
         container_root = os.path.join(self.config['destination'], self.config['name'])
 
-        btrfs_dirs = collections.deque([container_root])
+        btrfs_dirs = []
         for root, dirs, files in os.walk(container_root, topdown=False):
-            btrfs_dirs.extendleft(
+            btrfs_dirs.extend(
                 [os.path.join(root, d) for d in dirs if os.stat(os.path.join(root, d)).st_ino == 256]
             )
+        btrfs_dirs.append(container_root)
 
         for d in btrfs_dirs:
             cmd = ['btrfs', 'subvolume', 'delete', d]
             output = subprocess.check_output(cmd)
-            log.info("%s returned %s" % (" ".join(cmd), output))
+            log.info('`%s` returned "%s"' % (" ".join(cmd), output))
 
 
 class BuildCommand(BaseCommand):
@@ -258,8 +260,7 @@ class BuildCommand(BaseCommand):
 
         return errors
 
-    def run(self):
-        super(BuildCommand, self).run()
+    def do_command(self):
         self.dnf_temp_cache = tempfile.mkdtemp(prefix="salmon_dnf_cache_")
         self.container_dir = os.path.join(self.config['destination'], self.config['name'])
 
