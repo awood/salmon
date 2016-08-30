@@ -339,6 +339,9 @@ class BuildCommand(BaseCommand):
                 f.write(output)
 
     def fix_context(self):
+        """Fix the SELinux contexts on the container's files.  I believe this is only necessary for containers
+        that are not in a subvolume, but not certain.  It's run regardless of the container destination type
+        currently."""
         log.info("Fixing SELinux contexts")
         # Note that the (/.*)? is not interpreted by the shell, but by semanage-fcontext directly.
         subprocess.check_output([

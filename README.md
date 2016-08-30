@@ -80,7 +80,7 @@ this command will not work if manifest does not actually use a subvolume.
 ## Examples
 
 ```
-% sudo ./salmon.py build --destination $(mktemp -d /tmp/salmon_dest_XXXX) sample-manifest.yaml
+% sudo ./salmon.py build --destination $(mktemp -d /tmp/salmon_dest_XXXX) --no-subvolume sample-manifest.yaml
 ```
 
 The above example will bootstrap a container into a temporary directory based on
