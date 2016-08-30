@@ -280,6 +280,8 @@ class BuildCommand(BaseCommand):
         finally:
             shutil.rmtree(self.dnf_temp_cache)
 
+        self.fix_context()
+
         return 0
 
     def build_dnf(self, config):
@@ -335,3 +337,13 @@ class BuildCommand(BaseCommand):
             with open(os.path.join(self.container_dir, 'etc', 'yum.repos.d', 'salmon.repo'), 'w') as f:
                 log.debug("Writing %s" % output)
                 f.write(output)
+
+    def fix_context(self):
+        log.info("Fixing SELinux contexts")
+        # Note that the (/.*)? is not interpreted by the shell, but by semanage-fcontext directly.
+        subprocess.check_output([
+            'semanage', 'fcontext', '--add', '--type', 'svirt_sandbox_file_t', '%s(/.*)?' % self.container_dir
+        ])
+        subprocess.check_output([
+            'restorecon', '-R', self.container_dir
+        ])

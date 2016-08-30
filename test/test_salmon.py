@@ -7,7 +7,6 @@ import salmon.main as main
 import logging
 import argparse
 import tempfile
-import contextlib
 import mock
 import dnf
 import shutil
@@ -130,7 +129,8 @@ class BuildCommandTest(unittest.TestCase):
         with mock.patch('subprocess.check_output') as mock_subprocess, \
             mock.patch.object(main.BuildCommand, 'build_dnf'), \
             mock.patch.object(main.BuildCommand, 'run_dnf'), \
-            mock.patch.object(main.BuildCommand, 'post_dnf_run'):
+            mock.patch.object(main.BuildCommand, 'post_dnf_run'), \
+            mock.patch.object(main.BuildCommand, 'fix_context'):
 
             mock_subprocess.return_value = "OK"
             cmd_instance.do_command()
@@ -151,11 +151,13 @@ class BuildCommandTest(unittest.TestCase):
             mock.patch.object(main.BuildCommand, 'build_dnf'), \
             mock.patch.object(main.BuildCommand, 'run_dnf'), \
             mock.patch.object(main.BuildCommand, 'post_dnf_run'), \
+            mock.patch.object(main.BuildCommand, 'fix_context'), \
             mock.patch('shutil.rmtree'):
             cmd_instance.do_command()
 
         directory_name = os.path.join(self.good_config['destination'], self.good_config['name'])
         mock_mkdir.assert_called_with(directory_name)
+
 
 class DeleteCommandTest(unittest.TestCase):
     def setUp(self):
