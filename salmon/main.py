@@ -327,6 +327,7 @@ class BuildCommand(BaseCommand):
 
         # TODO: dump() results in pretty ugly output since it creates lines for *all* repo options.
         output = "\n".join([x.dump() for x in injected_repos])
-        with open(os.path.join(self.container_dir, 'etc', 'yum.repos.d', 'salmon.repo'), 'w') as f:
-            log.debug("Writing %s" % output)
-            f.write(output)
+        if output:
+            with open(os.path.join(self.container_dir, 'etc', 'yum.repos.d', 'salmon.repo'), 'w') as f:
+                log.debug("Writing %s" % output)
+                f.write(output)

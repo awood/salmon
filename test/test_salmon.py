@@ -6,8 +6,10 @@ import unittest
 import salmon.main as main
 import logging
 import argparse
-
+import tempfile
 import mock
+import dnf
+import shutil
 
 logging.basicConfig(level=logging.DEBUG, format="%(levelname)5s [%(name)s:%(lineno)s] %(message)s")
 logger = logging.getLogger('')
@@ -19,8 +21,17 @@ class BuildCommandTest(unittest.TestCase):
         self.good_config = {
             'repos': {
                 'centos_7_2': {
-                    'url': 'http://example.com'
-                }
+                    'baseurl': 'http://example.com',
+                    'inject': False,
+                },
+                'external_repo_1': {
+                    'baseurl': 'http://example.com',
+                    'inject': True,
+                },
+                'external_repo_2': {
+                    'baseurl': 'http://example.com',
+                    'inject': True,
+                },
             },
             'destination': '/var/lib/machines',
             'name': 'CentOS_7_2-base',
@@ -28,28 +39,29 @@ class BuildCommandTest(unittest.TestCase):
             'subvolume': True,
         }
         self.dummy_parser = argparse.ArgumentParser()
+        self.cmd_class = main.BuildCommand.get_instance(self.dummy_parser.add_subparsers())
+        self.dnf_temp_cache = tempfile.mkdtemp(prefix="salmon_unit_test_dnf_cache_")
+
+    def tearDown(self):
+        shutil.rmtree(self.dnf_temp_cache)
 
     def test_validate_required_with_missing_sections(self):
-        c = main.BuildCommand.get_instance(self.dummy_parser.add_subparsers())
         args = self.dummy_parser.parse_args(['build'])
 
         bad_config = {'repos': {}, 'destination': ''}
         with self.assertRaises(RuntimeError):
-            c(args).validate_config(bad_config)
+            self.cmd_class(args).validate_config(bad_config)
 
     def test_validate_required_with_missing_repos(self):
-        c = main.BuildCommand.get_instance(self.dummy_parser.add_subparsers())
         args = self.dummy_parser.parse_args(['build'])
 
         bad_config = {'repos': {}, 'destination': '', 'name': '', 'packages': []}
         with self.assertRaisesRegexp(RuntimeError, 'No repos'):
-            c(args).validate_config(bad_config)
+            self.cmd_class(args).validate_config(bad_config)
 
     def test_validate_required_with_good_config(self):
-        c = main.BuildCommand.get_instance(self.dummy_parser.add_subparsers())
         args = self.dummy_parser.parse_args(['build'])
-
-        c(args).validate_config(self.good_config)
+        self.cmd_class(args).validate_config(self.good_config)
 
     def test_cli_overrides_config_destination(self):
         args = ['build', '--destination', os.getcwd()]
@@ -75,6 +87,38 @@ class BuildCommandTest(unittest.TestCase):
         with self.assertRaises(SystemExit):
             main.Salmon(args)
 
+    def test_post_dnf_run(self):
+        args = self.dummy_parser.parse_args(['build'])
+        cmd_instance = self.cmd_class(args)
+        cmd_instance.dnf_temp_cache = self.dnf_temp_cache
+
+        with mock.patch.object(dnf.repo.Repo, 'load'), mock.patch.object(dnf.Base, 'fill_sack'):
+            dnf_base = cmd_instance.build_dnf(self.good_config)
+
+        m = mock.mock_open()
+
+        with mock.patch('__builtin__.open', m, create=True):
+            cmd_instance.container_dir = '/does/not/exist'
+            cmd_instance.post_dnf_run(dnf_base, self.good_config)
+            m.assert_called_with('/does/not/exist/etc/yum.repos.d/salmon.repo', 'w')
+
+    def test_post_dnf_run_no_inject(self):
+        args = self.dummy_parser.parse_args(['build'])
+        cmd_instance = self.cmd_class(args)
+        cmd_instance.dnf_temp_cache = self.dnf_temp_cache
+
+        del(self.good_config['repos']['external_repo_1'])
+        del(self.good_config['repos']['external_repo_2'])
+
+        with mock.patch.object(dnf.repo.Repo, 'load'), mock.patch.object(dnf.Base, 'fill_sack'):
+            dnf_base = cmd_instance.build_dnf(self.good_config)
+
+        m = mock.mock_open()
+
+        with mock.patch('__builtin__.open', m, create=True):
+            cmd_instance.container_dir = '/does/not/exist'
+            cmd_instance.post_dnf_run(dnf_base, self.good_config)
+            self.assertEqual([], m.mock_calls)
 
 class DeleteCommandTest(unittest.TestCase):
     def setUp(self):
@@ -85,7 +129,7 @@ class DeleteCommandTest(unittest.TestCase):
         no_subvolume_config = {
             'repos': {
                 'centos_7_2': {
-                    'url': 'http://example.com'
+                    'baseurl': 'http://example.com'
                 }
             },
             'destination': '/var/lib/machines',
