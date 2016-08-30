@@ -310,7 +310,11 @@ class BuildCommand(BaseCommand):
         dnf_base.conf.installroot = self.container_dir
 
         for p in config['packages']:
-            dnf_base.install(p)
+            if '://' in p:
+                local_pkg = dnf_base.add_remote_rpm(p)
+                dnf_base.package_install(local_pkg, strict=True)
+            else:
+                dnf_base.install(p)
 
         resolution = dnf_base.resolve()
         if resolution:

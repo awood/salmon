@@ -22,6 +22,7 @@ packages:
   - vim-minimal
   - redhat-release
   - yum
+  - https://dl.fedoraproject.org/pub/epel/epel-release-latest-7.noarch.rpm
 ```
 
 The file is in YAML and has four top-level settings:
@@ -31,7 +32,8 @@ The file is in YAML and has four top-level settings:
 * `subvolume`: instructs Salmon to create a Btrfs sub-volume for this
   container
 * `repos`: DNF repo definitions to pull content from
-* `packages`: packages to install into the container.
+* `packages`: packages to install into the container.  You can also include a
+  URL to an RPM and that DNF will grab it and install it.
 
 The `repos` section can have multiple sub-sections.  Each sub-section should be 
 a repo ID and then underneath that repo ID, you may define any option that DNF
