@@ -8,6 +8,7 @@ import logging
 import yaml
 import copy
 import shutil
+import collections
 import tempfile
 import subprocess
 
@@ -174,14 +175,29 @@ class DeleteCommand(BaseCommand):
         return errors
 
     def run(self):
+        """Systemd itself checks during init, whether the device backing /var/lib/machines is btrfs, and if
+        it is then it makes a subvolume for it.  This behavior results in two btrfs subvolumes: one for our
+        container and one within our container for its /var/lib/machines.  As a result, we need to delete
+        two btrfs subvolumes with this command.  We'll do a depth first search through the tree looking for
+        directories with an inode number of 256 (which identifies a btrfs subvolume) and then delete each
+        volume in the order we found it.
+
+        See also http://stackoverflow.com/a/32865333
+        """
         super(DeleteCommand, self).run()
 
-        cmd = [
-            'btrfs', 'subvolume', 'delete', os.path.join(self.config['destination'], self.config['name'])
-        ]
+        container_root = os.path.join(self.config['destination'], self.config['name'])
 
-        output = subprocess.check_output(cmd)
-        log.info("%s returned %s" % (" ".join(cmd), output))
+        btrfs_dirs = collections.deque([container_root])
+        for root, dirs, files in os.walk(container_root, topdown=False):
+            btrfs_dirs.extendleft(
+                [os.path.join(root, d) for d in dirs if os.stat(os.path.join(root, d)).st_ino == 256]
+            )
+
+        for d in btrfs_dirs:
+            cmd = ['btrfs', 'subvolume', 'delete', d]
+            output = subprocess.check_output(cmd)
+            log.info("%s returned %s" % (" ".join(cmd), output))
 
 
 class BuildCommand(BaseCommand):
