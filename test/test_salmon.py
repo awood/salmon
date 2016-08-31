@@ -37,6 +37,7 @@ class BuildCommandTest(unittest.TestCase):
             'name': 'CentOS_7_2-base',
             'packages': ['systemd', 'passwd', 'vim-minimal', 'redhat-release', 'yum'],
             'subvolume': True,
+            'disable_securetty': True,
         }
         self.dummy_parser = argparse.ArgumentParser()
         self.cmd_class = main.BuildCommand.get_instance(self.dummy_parser.add_subparsers())
@@ -130,6 +131,7 @@ class BuildCommandTest(unittest.TestCase):
             mock.patch.object(main.BuildCommand, 'build_dnf'), \
             mock.patch.object(main.BuildCommand, 'run_dnf'), \
             mock.patch.object(main.BuildCommand, 'post_dnf_run'), \
+            mock.patch.object(main.BuildCommand, 'remove_securetty'), \
             mock.patch.object(main.BuildCommand, 'fix_context'):
 
             mock_subprocess.return_value = "OK"
@@ -152,6 +154,7 @@ class BuildCommandTest(unittest.TestCase):
             mock.patch.object(main.BuildCommand, 'run_dnf'), \
             mock.patch.object(main.BuildCommand, 'post_dnf_run'), \
             mock.patch.object(main.BuildCommand, 'fix_context'), \
+            mock.patch.object(main.BuildCommand, 'remove_securetty'), \
             mock.patch('shutil.rmtree'):
             cmd_instance.do_command()
 

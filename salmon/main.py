@@ -127,7 +127,14 @@ class BaseCommand(object):
 
     def validate_config(self, raw_config):
         config = copy.deepcopy(raw_config)
-        required_top_options = {'name', 'destination', 'repos', 'packages', 'subvolume'}
+        required_top_options = {
+            'name',
+            'destination',
+            'repos',
+            'packages',
+            'subvolume',
+            'disable_securetty',
+        }
         top_options = set(config.keys())
 
         errors = []
@@ -259,6 +266,11 @@ class BuildCommand(BaseCommand):
             config['subvolume'] = args.subvolume
             log.info("Using subvolume '%s' from the command line" % args.subvolume)
 
+        # Make sure disable_securetty is set with something and default that setting to False.
+        if config.setdefault('disable_securetty', False) not in [True, False]:
+            config['disable_securetty'] = False
+            log.warning("The 'disable_securetty' setting must be either True or False.  Falling back to False.")
+
         return errors
 
     def do_command(self):
@@ -282,6 +294,7 @@ class BuildCommand(BaseCommand):
             shutil.rmtree(self.dnf_temp_cache)
 
         self.fix_context()
+        self.remove_securetty(self.config)
 
         return 0
 
@@ -351,3 +364,9 @@ class BuildCommand(BaseCommand):
         subprocess.check_output([
             'restorecon', '-R', self.container_dir
         ])
+
+    def remove_securetty(self, config):
+        # I want to be picky about this setting.  Only True should work; anything else should not
+        if config['disable_securetty'] == True:
+            log.info("Removing securetty from container")
+            os.unlink(os.path.join(self.container_dir, 'etc', 'securetty'))

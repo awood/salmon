@@ -11,6 +11,7 @@ Let's look at an example
 name: "CentOS7_2-base"
 destination: "/var/lib/machines"
 as_subvolume: True
+disable_securetty: True
 
 repos:
   centos7_2:
@@ -25,12 +26,17 @@ packages:
   - https://dl.fedoraproject.org/pub/epel/epel-release-latest-7.noarch.rpm
 ```
 
-The file is in YAML and has four top-level settings:
+The file is in YAML and has several top-level settings:
 
 * `name`: the name to use for this container
 * `destination`: the file path that the container will be written to
 * `subvolume`: instructs Salmon to create a Btrfs sub-volume for this
   container
+* `disable_securetty`: instructs Salmon to remove `/etc/securetty` from the
+  finished container so that `machinectl login` will work.  Esentially a clumsy
+  workaround for [this issue](https://github.com/systemd/systemd/issues/852).
+  If you do not set this setting to True explicitly, Salmon will **not** remove
+  `/etc/securetty`.
 * `repos`: DNF repo definitions to pull content from
 * `packages`: packages to install into the container.  You can also include a
   URL to an RPM and that DNF will grab it and install it.
