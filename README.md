@@ -100,3 +100,8 @@ one started:
 
 Now you have a 10G file under `~/containers` loop mounted to `/var/lib/machines`
 that you can use to experiment with.
+
+## Acknowledgments
+
+Thanks to [Vincent Batts](http://www.hashbangbash.com)
+[John M. Harris, Jr.](https://fedoramagazine.org/container-technologies-fedora-systemd-nspawn/)

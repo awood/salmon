@@ -83,11 +83,12 @@ class Salmon(object):
 
         # Create an instance of each subcommand with a populated subparser
         # The indirection here is primarily aimed at ensuring that the subcommand
-        # is populated with the argparser.Namespace object before attempting to
-        # run.  Without the factory pattern, we would need manually inject the
-        # args object into each subcommand instance.  Although this pattern is
-        # esoteric, I deemed it better than setting attributes on classes externally
-        # or dealing with bugs where the args object was not injected properly.
+        # has registered its options with the parent parser before attempting to
+        # run.  Without the builder pattern, we would need to remember to manually
+        # inject the subparsers object into each subcommand instance.  Although this
+        # pattern is esoteric, I deemed it better than setting attributes on classes
+        # externally or dealing with bugs where the args object was not injected properly.
+        # I also feel that it makes testing a little more flexible.
         self.build_class = BuildCommand.get_instance(subparsers)
         self.delete_class = DeleteCommand.get_instance(subparsers)
 
