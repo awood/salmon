@@ -10,10 +10,28 @@ import tempfile
 import mock
 import dnf
 import shutil
+import crypt
+import textwrap
+import StringIO
+
+from contextlib import contextmanager
 
 logging.basicConfig(level=logging.DEBUG, format="%(levelname)5s [%(name)s:%(lineno)s] %(message)s")
 logger = logging.getLogger('')
 logger.setLevel(logging.INFO)
+
+
+@contextmanager
+def open_mock(content, **kwargs):
+    content_out = StringIO.StringIO()
+    m = mock.mock_open(read_data=content)
+    with mock.patch('__builtin__.open', m, create=True, **kwargs) as mo:
+        stream = StringIO.StringIO(content)
+        rv = mo.return_value
+        rv.write = lambda x: content_out.write(x)
+        rv.content_out = lambda: content_out.getvalue()
+        rv.__iter__ = lambda x: iter(stream.readlines())
+        yield rv
 
 
 class BuildCommandTest(unittest.TestCase):
@@ -38,7 +56,28 @@ class BuildCommandTest(unittest.TestCase):
             'packages': ['systemd', 'passwd', 'vim-minimal', 'redhat-release', 'yum'],
             'subvolume': True,
             'disable_securetty': True,
+            'root_password': 'hello',
         }
+
+        self.shadow = textwrap.dedent("""
+        root:*:16579:0:99999:7:::
+        bin:*:16579:0:99999:7:::
+        daemon:*:16579:0:99999:7:::
+        adm:*:16579:0:99999:7:::
+        lp:*:16579:0:99999:7:::
+        sync:*:16579:0:99999:7:::
+        shutdown:*:16579:0:99999:7:::
+        halt:*:16579:0:99999:7:::
+        mail:*:16579:0:99999:7:::
+        operator:*:16579:0:99999:7:::
+        games:*:16579:0:99999:7:::
+        ftp:*:16579:0:99999:7:::
+        nobody:*:16579:0:99999:7:::
+        systemd-bus-proxy:!!:17044::::::
+        systemd-network:!!:17044::::::
+        dbus:!!:17044::::::
+        """)
+
         self.dummy_parser = argparse.ArgumentParser()
         self.cmd_class = main.BuildCommand.get_instance(self.dummy_parser.add_subparsers())
         self.dnf_temp_cache = tempfile.mkdtemp(prefix="salmon_unit_test_dnf_cache_")
@@ -88,6 +127,11 @@ class BuildCommandTest(unittest.TestCase):
         with self.assertRaises(SystemExit):
             main.Salmon(args)
 
+    def test_root_password_options_mutually_exclusive(self):
+        args = ['build', '--root-password', 'hello', '--no-root-password']
+        with self.assertRaises(SystemExit):
+            main.Salmon(args)
+
     def test_post_dnf_run(self):
         args = self.dummy_parser.parse_args(['build'])
         cmd_instance = self.cmd_class(args)
@@ -131,8 +175,7 @@ class BuildCommandTest(unittest.TestCase):
             mock.patch.object(main.BuildCommand, 'build_dnf'), \
             mock.patch.object(main.BuildCommand, 'run_dnf'), \
             mock.patch.object(main.BuildCommand, 'post_dnf_run'), \
-            mock.patch.object(main.BuildCommand, 'remove_securetty'), \
-            mock.patch.object(main.BuildCommand, 'fix_context'):
+            mock.patch.object(main.BuildCommand, 'post_creation'):
 
             mock_subprocess.return_value = "OK"
             cmd_instance.do_command()
@@ -153,13 +196,62 @@ class BuildCommandTest(unittest.TestCase):
             mock.patch.object(main.BuildCommand, 'build_dnf'), \
             mock.patch.object(main.BuildCommand, 'run_dnf'), \
             mock.patch.object(main.BuildCommand, 'post_dnf_run'), \
-            mock.patch.object(main.BuildCommand, 'fix_context'), \
-            mock.patch.object(main.BuildCommand, 'remove_securetty'), \
-            mock.patch('shutil.rmtree'):
+            mock.patch('shutil.rmtree'), \
+            mock.patch.object(main.BuildCommand, 'post_creation'):
             cmd_instance.do_command()
 
         directory_name = os.path.join(self.good_config['destination'], self.good_config['name'])
         mock_mkdir.assert_called_with(directory_name)
+
+    def test_blanks_root_password(self):
+        args = self.dummy_parser.parse_args(['build'])
+        cmd_instance = self.cmd_class(args)
+        self.good_config['root_password'] = False
+
+        m = mock.mock_open(read_data=self.shadow)
+
+        with open_mock(self.shadow) as m:
+            cmd_instance.container_dir = '/does/not/exist'
+            cmd_instance.set_root_password(self.good_config)
+            out = m.content_out()
+            self.assertIn('root::16579:0:99999:7:::', out)
+
+    def test_none_leaves_root_password_alone(self):
+        # In reality, we shouldn't even call set_root_password() if the root_password
+        # config option is None, but we should be cautious inside set_root_password().
+        args = self.dummy_parser.parse_args(['build'])
+        cmd_instance = self.cmd_class(args)
+        self.good_config['root_password'] = None
+
+        m = mock.mock_open(read_data=self.shadow)
+
+        with open_mock(self.shadow) as m:
+            cmd_instance.container_dir = '/does/not/exist'
+            cmd_instance.set_root_password(self.good_config)
+            out = m.content_out()
+            self.assertEqual(self.shadow, out)
+
+    def test_plaintext_root_password(self):
+        args = self.dummy_parser.parse_args(['build'])
+        cmd_instance = self.cmd_class(args)
+        self.good_config['root_password'] = "hello"
+
+        with open_mock(self.shadow) as m:
+            cmd_instance.container_dir = '/does/not/exist'
+            cmd_instance.set_root_password(self.good_config)
+            out = m.content_out()
+            self.assertRegexpMatches(out, 'root:%s:16579:0:99999:7:::' % self.cmd_class.CRYPT_RE.pattern)
+
+    def test_crypt_root_password(self):
+        args = self.dummy_parser.parse_args(['build'])
+        cmd_instance = self.cmd_class(args)
+        encrypted = crypt.crypt("hello")
+        self.good_config['root_password'] = encrypted
+        with open_mock(self.shadow) as m:
+            cmd_instance.container_dir = '/does/not/exist'
+            cmd_instance.set_root_password(self.good_config)
+            out = m.content_out()
+            self.assertIn('root:%s:16579:0:99999:7:::' % encrypted, out)
 
 
 class DeleteCommandTest(unittest.TestCase):

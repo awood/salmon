@@ -30,16 +30,21 @@ The file is in YAML and has several top-level settings:
 
 * `name`: the name to use for this container
 * `destination`: the file path that the container will be written to
-* `subvolume`: instructs Salmon to create a Btrfs sub-volume for this
-  container
+* `subvolume`: instructs Salmon to create a Btrfs sub-volume for this container
+* `repos`: DNF repo definitions to pull content from
+* `packages`: packages to install into the container.  You can also include a
+  URL to an RPM and that DNF will grab it and install it.
+  
+There are also some optional settings:
 * `disable_securetty`: instructs Salmon to remove `/etc/securetty` from the
   finished container so that `machinectl login` will work.  Esentially a clumsy
   workaround for [this issue](https://github.com/systemd/systemd/issues/852).
   If you do not set this setting to True explicitly, Salmon will **not** remove
   `/etc/securetty`.
-* `repos`: DNF repo definitions to pull content from
-* `packages`: packages to install into the container.  You can also include a
-  URL to an RPM and that DNF will grab it and install it.
+* `root_password`: what to set the container's root password to.  You may
+  provide a plaintext string, a [modular crypt format](https://pythonhosted.org/passlib/modular_crypt_format.html)
+  style string (i.e. what `passwd` generates), False for no password at all,
+  or null to leave the file untouched.
 
 The `repos` section can have multiple sub-sections.  Each sub-section should be 
 a repo ID and then underneath that repo ID, you may define any option that DNF
@@ -58,17 +63,23 @@ but more are planned.
 Options: 
 
 * `--verbose`: print additional debugging information
-* `--destination`: replace the destination given in the manifest file.  Useful
-  for ad hoc tests
+* `--destination=DESTINATION`: replace the destination given in the manifest
+  file.  Useful for ad hoc tests
 * `--[no-]subvolume`: override whether the manifest file should use a btrfs
   subvolume or not
+* `--root-password=PASSWORD`: override what the manifest sets the root password
+  to
+* `--no-root-password`: use no root password at all.  Mutually exclusive with
+  `--root-password`.
 
 Arguments:
 
 * manifest file
 
 This command builds an nspawn container based on the configuration in the
-manifest.
+manifest.  After building the container, it will set the correct SELinux context
+on the container files and optionally delete `/etc/securetty` to work around an
+[issue](https://github.com/systemd/systemd/issues/852) with `machinectl login`.
 
 ### `Delete` Subcommand
 

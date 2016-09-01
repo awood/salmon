@@ -1,8 +1,10 @@
 from __future__ import absolute_import
 
+import crypt
 import os
 import abc
 import argparse
+import re
 import sys
 import logging
 import yaml
@@ -117,9 +119,16 @@ class BaseCommand(object):
 
     def run(self):
         raw_config = yaml.load(self.args.manifest)
-        log.info("Config is %s" % raw_config)
+        log.info("Raw Config is %s" % self.redact(raw_config))
         self.config = self.validate_config(raw_config)
+        log.info("Calculated Config is %s" % self.redact(self.config))
         return self.do_command()
+
+    def redact(self, config):
+        redacted_config = copy.deepcopy(config)
+        if 'root_password' in redacted_config:
+            redacted_config['root_password'] = 'REDACTED'
+        return redacted_config
 
     @abc.abstractmethod
     def do_command(self):
@@ -133,7 +142,6 @@ class BaseCommand(object):
             'repos',
             'packages',
             'subvolume',
-            'disable_securetty',
         }
         top_options = set(config.keys())
 
@@ -211,6 +219,10 @@ class DeleteCommand(BaseCommand):
 
 
 class BuildCommand(BaseCommand):
+    # See documentation on Modular Crypt Format (https://pythonhosted.org/passlib/modular_crypt_format.html)
+    # Note that this regex will only support MD5, SHA256, SHA512, and bcrypt styles
+    CRYPT_RE = re.compile(r"\$(1|5|6|2|2a|2x|2y)\$[a-zA-Z0-9./]+\$?[a-zA-Z0-9./]+")
+
     @classmethod
     def get_instance(cls, subparsers):
         parser = subparsers.add_parser('build', help='build an nspawn container')
@@ -229,11 +241,28 @@ class BuildCommand(BaseCommand):
         )
         parser.add_argument(
             "--destination",
+            help="Override destination directory"
+        )
+
+        root_password_group = parser.add_mutually_exclusive_group()
+        root_password_group.add_argument(
+            "--root-password",
+            help="Override root password to set on the container"
+        )
+        # Note that argparser's semantics around defaults for store_true/store_false
+        # are weird.  Default to None instead of argparser's attempt to be helpful.
+        # The default of None here will result in Salmon leaving the root password alone.
+        root_password_group.add_argument(
+            "--no-root-password",
+            action="store_false",
+            dest="root_password",
             default=None,
-            help="Destination directory"
+            help="Enable password-less login for root on the container."
         )
 
         subvolume_group = parser.add_mutually_exclusive_group()
+        # Note that argparsers semantics around defaults for store_true/store_false
+        # are weird.  Default to None instead of argparser's attempt to be helpful.
         subvolume_group.add_argument(
             "--subvolume",
             action="store_true",
@@ -269,7 +298,13 @@ class BuildCommand(BaseCommand):
         # Make sure disable_securetty is set with something and default that setting to False.
         if config.setdefault('disable_securetty', False) not in [True, False]:
             config['disable_securetty'] = False
-            log.warning("The 'disable_securetty' setting must be either True or False.  Falling back to False.")
+            log.warning(
+                "The 'disable_securetty' setting must be either True or False.  Falling back to False."
+            )
+
+        config.setdefault('root_password', None)
+        if args.root_password is not None:
+            config['root_password'] = args.root_password
 
         return errors
 
@@ -293,10 +328,14 @@ class BuildCommand(BaseCommand):
         finally:
             shutil.rmtree(self.dnf_temp_cache)
 
-        self.fix_context()
-        self.remove_securetty(self.config)
-
+        self.post_creation(self.config)
         return 0
+
+    def post_creation(self, config):
+        self.fix_context()
+        self.remove_securetty(config)
+        if config['root_password'] is not None:
+            self.set_root_password(config)
 
     def build_dnf(self, config):
         dnf_base = dnf.Base()
@@ -366,7 +405,60 @@ class BuildCommand(BaseCommand):
         ])
 
     def remove_securetty(self, config):
+        """Remove /etc/securetty from the resultant container to allow machinectl login.  This workaround is
+        to address https://github.com/systemd/systemd/issues/852."""
         # I want to be picky about this setting.  Only True should work; anything else should not
-        if config['disable_securetty'] == True:
+        if config['disable_securetty'] is True:
             log.info("Removing securetty from container")
             os.unlink(os.path.join(self.container_dir, 'etc', 'securetty'))
+
+    def set_root_password(self, config):
+        """Set the root password in /etc/shadow for the container.  Valid values for
+        the root_password configuration option are False (for no password at all), plaintext
+        strings, or already encrypted strings matching the Modular Crypt Format."""
+        with open(os.path.join(self.container_dir, 'etc', 'shadow'), 'r') as shadow:
+            entries = [l.strip() for l in shadow]
+
+        shadow_items = [
+            # See shadow.h
+            'sp_nam',  # login name
+            'sp_pwd',  # encrypted password
+            'sp_lstchg',  # date of last change
+            'sp_min',  # min #days between changes
+            'sp_max',  # max #days between changes
+            'sp_warn',  # days before pw expires to warn user about it
+            'sp_inact',  # days after pw expires until account is blocked
+            'sp_expire',  # days since 1970-01-01 until account is disabled
+            'sp_flag',  # reserved
+        ]
+
+        new_entries = []
+        for entry in entries:
+            items = str.split(entry, ':', 9)
+            if len(items) != 9:
+                log.debug("Couldn't read '%s' in /etc/shadow" % entry)
+                new_entries.append(entry)
+                continue
+
+            shadow_line = dict(zip(shadow_items, items))
+
+            if shadow_line['sp_nam'] == "root" and config['root_password'] is not None:
+                if config['root_password'] is False:
+                    log.info("Disabling root password")
+                    shadow_line['sp_pwd'] = ''
+                elif self.CRYPT_RE.match(config['root_password']):
+                    log.info("Setting root password")
+                    shadow_line['sp_pwd'] = config['root_password']
+                else:
+                    log.info("Setting root password")
+                    shadow_line['sp_pwd'] = crypt.crypt(config['root_password'])
+
+            new_entries.append(shadow_line)
+
+        with open(os.path.join(self.container_dir, 'etc', 'shadow'), 'w') as shadow:
+            for entry in new_entries:
+                if isinstance(entry, dict):
+                    shadow.write(':'.join([entry[x] for x in shadow_items]))
+                else:
+                    shadow.write(entry)
+                shadow.write('\n')

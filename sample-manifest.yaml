@@ -1,6 +1,8 @@
 name: "CentOS_7_2-base"
 destination: "/var/lib/machines"
-subvolume: true
+subvolume: True
+disable_securetty: True
+root_password: "hello"
 
 repos:
   centos7_2:
