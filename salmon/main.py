@@ -329,6 +329,7 @@ class BuildCommand(BaseCommand):
             shutil.rmtree(self.dnf_temp_cache)
 
         self.post_creation(self.config)
+        log.info("Finished %s" % self.config['name'])
         return 0
 
     def post_creation(self, config):
@@ -388,8 +389,12 @@ class BuildCommand(BaseCommand):
             dnf_base.repos[repo_id] for repo_id, repo_opts in config['repos'].items() if repo_opts.get('inject', False)
         ]
 
-        # TODO: dump() results in pretty ugly output since it creates lines for *all* repo options.
-        output = "\n".join([x.dump() for x in injected_repos])
+        output = ""
+        for inj in injected_repos:
+            # dump() results in broken output since it creates lines with blank values that
+            # DNF chokes on during a run.  Strip those out.
+            output += "\n".join([o for o in inj.dump().split('\n') if not re.match(r"^\w+\s=\s*$", o)])
+
         if output:
             with open(os.path.join(self.container_dir, 'etc', 'yum.repos.d', 'salmon.repo'), 'w') as f:
                 log.debug("Writing %s" % output)
