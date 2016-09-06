@@ -119,9 +119,9 @@ class BaseCommand(object):
 
     def run(self):
         raw_config = yaml.load(self.args.manifest)
-        log.info("Raw Config is %s" % self.redact(raw_config))
+        log.debug("Raw Config is %s" % self.redact(raw_config))
         self.config = self.validate_config(raw_config)
-        log.info("Calculated Config is %s" % self.redact(self.config))
+        log.debug("Calculated Config is %s" % self.redact(self.config))
         return self.do_command()
 
     def redact(self, config):
@@ -365,11 +365,15 @@ class BuildCommand(BaseCommand):
         dnf_base.conf.installroot = self.container_dir
 
         for p in config['packages']:
-            if '://' in p:
-                local_pkg = dnf_base.add_remote_rpm(p)
-                dnf_base.package_install(local_pkg, strict=True)
-            else:
-                dnf_base.install(p)
+            try:
+                if '://' in p:
+                    local_pkg = dnf_base.add_remote_rpm(p)
+                    dnf_base.package_install(local_pkg, strict=True)
+                else:
+                    dnf_base.install(p)
+            except dnf.exceptions.Error as e:
+                log.exception("Could not install %s" % p)
+                sys.exit(1)
 
         resolution = dnf_base.resolve()
         if resolution:
