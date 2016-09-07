@@ -306,6 +306,7 @@ class BuildCommand(BaseCommand):
         if args.root_password is not None:
             config['root_password'] = args.root_password
 
+        config.setdefault('dns', None)
         return errors
 
     def do_command(self):
@@ -335,6 +336,8 @@ class BuildCommand(BaseCommand):
     def post_creation(self, config):
         self.fix_context()
         self.remove_securetty(config)
+        if config['dns'] is not None and config['dns'] is not False:
+            self.configure_dns(config)
         if config['root_password'] is not None:
             self.set_root_password(config)
 
@@ -421,11 +424,27 @@ class BuildCommand(BaseCommand):
             log.info("Removing securetty from container")
             os.unlink(os.path.join(self.container_dir, 'etc', 'securetty'))
 
+    def configure_dns(self, config):
+        destination_resolv_conf = os.path.join(self.container_dir, 'etc', 'resolv.conf')
+        if config['dns'] is True:
+            shutil.copyfile('/etc/resolv.conf', os.path.join(self.container_dir, 'etc', 'resolv.conf'))
+            return
+
+        if isinstance(config['dns'], basestring):
+            config['dns'] = [config['dns']]
+
+        new_entries = ['nameserver %s\n' % s for s in config['dns']]
+
+        with open(destination_resolv_conf, 'w') as resolv_conf:
+            for entry in new_entries:
+                resolv_conf.write(entry)
+
     def set_root_password(self, config):
         """Set the root password in /etc/shadow for the container.  Valid values for
         the root_password configuration option are False (for no password at all), plaintext
         strings, or already encrypted strings matching the Modular Crypt Format."""
-        with open(os.path.join(self.container_dir, 'etc', 'shadow'), 'r') as shadow:
+        destination_shadow = os.path.join(self.container_dir, 'etc', 'shadow')
+        with open(destination_shadow, 'r') as shadow:
             entries = [l.strip() for l in shadow]
 
         shadow_items = [
@@ -464,7 +483,7 @@ class BuildCommand(BaseCommand):
 
             new_entries.append(shadow_line)
 
-        with open(os.path.join(self.container_dir, 'etc', 'shadow'), 'w') as shadow:
+        with open(destination_shadow, 'w') as shadow:
             for entry in new_entries:
                 if isinstance(entry, dict):
                     shadow.write(':'.join([entry[x] for x in shadow_items]))

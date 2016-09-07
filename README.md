@@ -12,6 +12,7 @@ name: "CentOS7_2-base"
 destination: "/var/lib/machines"
 as_subvolume: True
 disable_securetty: True
+dns: 8.8.8.8
 
 repos:
   centos7_2:
@@ -34,7 +35,7 @@ The file is in YAML and has several top-level settings:
 * `repos`: DNF repo definitions to pull content from
 * `packages`: packages to install into the container.  You can also include a
   URL to an RPM and that DNF will grab it and install it.
-  
+
 There are also some optional settings:
 * `disable_securetty`: instructs Salmon to remove `/etc/securetty` from the
   finished container so that `machinectl login` will work.  Esentially a clumsy
@@ -45,8 +46,10 @@ There are also some optional settings:
   provide a plaintext string, a [modular crypt format](https://pythonhosted.org/passlib/modular_crypt_format.html)
   style string (i.e. what `passwd` generates), False for no password at all,
   or null to leave the file untouched.
+* `dns`: the DNS server for the container to use.  You may provide an IP address, a list of IP addresses,
+  or True in which case, Salmon will copy the host machine's `resolv.conf` into the container.
 
-The `repos` section can have multiple sub-sections.  Each sub-section should be 
+The `repos` section can have multiple sub-sections.  Each sub-section should be
 a repo ID and then underneath that repo ID, you may define any option that DNF
 will recognize (e.g. `gpgcheck`).  You may also define an option `inject` which
 will cause Salmon to write that repo definition into a file within the
@@ -60,7 +63,7 @@ but more are planned.
 
 ### `Build` Subcommand
 
-Options: 
+Options:
 
 * `--verbose`: print additional debugging information
 * `--destination=DESTINATION`: replace the destination given in the manifest

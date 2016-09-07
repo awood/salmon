@@ -22,7 +22,7 @@ logger.setLevel(logging.INFO)
 
 
 @contextmanager
-def open_mock(content, **kwargs):
+def open_mock(content=None, **kwargs):
     content_out = StringIO.StringIO()
     m = mock.mock_open(read_data=content)
     with mock.patch('__builtin__.open', m, create=True, **kwargs) as mo:
@@ -57,6 +57,7 @@ class BuildCommandTest(unittest.TestCase):
             'subvolume': True,
             'disable_securetty': True,
             'root_password': 'hello',
+            'dns': '8.8.8.8',
         }
 
         self.shadow = textwrap.dedent("""
@@ -252,6 +253,38 @@ class BuildCommandTest(unittest.TestCase):
             cmd_instance.set_root_password(self.good_config)
             out = m.content_out()
             self.assertIn('root:%s:16579:0:99999:7:::' % encrypted, out)
+
+    def test_configure_dns_inject(self):
+        args = self.dummy_parser.parse_args(['build'])
+        cmd_instance = self.cmd_class(args)
+
+        self.good_config['dns'] = True
+        with mock.patch('shutil.copyfile') as mock_copy:
+            cmd_instance.container_dir = '/does/not/exist'
+            cmd_instance.configure_dns(self.good_config)
+            mock_copy.assert_called_once_with('/etc/resolv.conf', '/does/not/exist/etc/resolv.conf')
+
+    def test_configure_dns_nameserver(self):
+        args = self.dummy_parser.parse_args(['build'])
+        cmd_instance = self.cmd_class(args)
+
+        self.good_config['dns'] = '8.8.8.8'
+        with open_mock() as m:
+            cmd_instance.container_dir = '/does/not/exist'
+            cmd_instance.configure_dns(self.good_config)
+            out = m.content_out()
+            self.assertIn('nameserver 8.8.8.8\n', out)
+
+    def test_configure_dns_nameserver_list(self):
+        args = self.dummy_parser.parse_args(['build'])
+        cmd_instance = self.cmd_class(args)
+
+        self.good_config['dns'] = ['8.8.8.8', '8.8.4.4']
+        with open_mock() as m:
+            cmd_instance.container_dir = '/does/not/exist'
+            cmd_instance.configure_dns(self.good_config)
+            out = m.content_out()
+            self.assertIn('nameserver 8.8.8.8\nnameserver 8.8.4.4\n', out)
 
 
 class DeleteCommandTest(unittest.TestCase):
