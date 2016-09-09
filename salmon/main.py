@@ -372,7 +372,7 @@ class BuildCommand(BaseCommand):
                     dnf_base.package_install(local_pkg, strict=True)
                 else:
                     dnf_base.install(p)
-            except dnf.exceptions.Error as e:
+            except dnf.exceptions.Error:
                 log.exception("Could not install %s" % p)
                 sys.exit(1)
 
