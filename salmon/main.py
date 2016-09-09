@@ -306,7 +306,6 @@ class BuildCommand(BaseCommand):
         if args.root_password is not None:
             config['root_password'] = args.root_password
 
-        config.setdefault('dns', None)
         return errors
 
     def do_command(self):
@@ -336,8 +335,6 @@ class BuildCommand(BaseCommand):
     def post_creation(self, config):
         self.fix_context()
         self.remove_securetty(config)
-        if config['dns'] is not None and config['dns'] is not False:
-            self.configure_dns(config)
         if config['root_password'] is not None:
             self.set_root_password(config)
 
@@ -423,21 +420,6 @@ class BuildCommand(BaseCommand):
         if config['disable_securetty'] is True:
             log.info("Removing securetty from container")
             os.unlink(os.path.join(self.container_dir, 'etc', 'securetty'))
-
-    def configure_dns(self, config):
-        destination_resolv_conf = os.path.join(self.container_dir, 'etc', 'resolv.conf')
-        if config['dns'] is True:
-            shutil.copyfile('/etc/resolv.conf', os.path.join(self.container_dir, 'etc', 'resolv.conf'))
-            return
-
-        if isinstance(config['dns'], basestring):
-            config['dns'] = [config['dns']]
-
-        new_entries = ['nameserver %s\n' % s for s in config['dns']]
-
-        with open(destination_resolv_conf, 'w') as resolv_conf:
-            for entry in new_entries:
-                resolv_conf.write(entry)
 
     def set_root_password(self, config):
         """Set the root password in /etc/shadow for the container.  Valid values for

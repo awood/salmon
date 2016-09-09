@@ -19,7 +19,6 @@ name: "CentOS7_2-base"
 destination: "/var/lib/machines"
 as_subvolume: True
 disable_securetty: True
-dns: 8.8.8.8
 
 repos:
   centos7_2:
@@ -53,8 +52,6 @@ There are also some optional settings:
   provide a plaintext string, a [modular crypt format](https://pythonhosted.org/passlib/modular_crypt_format.html)
   style string (i.e. what `passwd` generates), False for no password at all,
   or null to leave the file untouched.
-* `dns`: the DNS server for the container to use.  You may provide an IP address, a list of IP addresses,
-  or True in which case, Salmon will copy the host machine's `resolv.conf` into the container.
 
 The `repos` section can have multiple sub-sections.  Each sub-section should be
 a repo ID and then underneath that repo ID, you may define any option that DNF

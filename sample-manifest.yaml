@@ -3,9 +3,6 @@ destination: "/var/lib/machines"
 subvolume: True
 disable_securetty: True
 root_password: "hello"
-dns:
-  - 8.8.8.8
-  - 8.8.4.4
 
 repos:
   centos7_2:
