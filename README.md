@@ -1,7 +1,14 @@
 # Salmon
 
-Salmon is a tool used to bootstrap Systemd Nspawn containers.  Most of the
+Salmon is a tool used to bootstrap Systemd Nspawn containers. Most of the
 configuration is given via a manifest file.
+
+## Getting Started
+
+Salmon has a few dependencies, so be sure to run `pip install -r
+requirements.txt` before you get started. Salmon also requires the `python-dnf`
+package to be installed. You can install this via DNF: `sudo dnf install
+python-dnf`
 
 ## Manifest Structure
 
@@ -120,6 +127,11 @@ one started:
 
 Now you have a 10G file under `~/containers` loop mounted to `/var/lib/machines`
 that you can use to experiment with.
+
+## Other Notes
+
+* While Salmon is building your container, it will acquire the global DNF lock
+  and prevent DNF from completing other transactions.
 
 ## Acknowledgments
 
