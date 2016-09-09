@@ -8,6 +8,10 @@ repos:
   centos7_2:
     baseurl: "http://mirror.centos.org/centos/7.2.1511/os/x86_64"
 
+nspawn_file: |
+  [Network]
+  Private=no
+
 packages:
   - systemd
   - passwd

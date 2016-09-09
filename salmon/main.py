@@ -217,6 +217,14 @@ class DeleteCommand(BaseCommand):
             output = subprocess.check_output(cmd)
             log.info('`%s` returned "%s"' % (" ".join(cmd), output))
 
+        if self.config['nspawn_file']:
+            nspawn_file = os.path.join('/', 'etc', 'systemd', 'nspawn', '%s.nspawn' % self.config['name'])
+            try:
+                os.unlink(nspawn_file)
+                log.info("Deleted %s" % nspawn_file)
+            except OSError:
+                log.info("Didn't find %s to delete" % nspawn_file)
+
 
 class BuildCommand(BaseCommand):
     # See documentation on Modular Crypt Format (https://pythonhosted.org/passlib/modular_crypt_format.html)
@@ -306,6 +314,7 @@ class BuildCommand(BaseCommand):
         if args.root_password is not None:
             config['root_password'] = args.root_password
 
+        config.setdefault('nspawn_file', None)
         return errors
 
     def do_command(self):
@@ -337,6 +346,8 @@ class BuildCommand(BaseCommand):
         self.remove_securetty(config)
         if config['root_password'] is not None:
             self.set_root_password(config)
+        if config['nspawn_file'] is not None:
+            self.create_nspawn_file(config)
 
     def build_dnf(self, config):
         dnf_base = dnf.Base()
@@ -472,3 +483,24 @@ class BuildCommand(BaseCommand):
                 else:
                     shadow.write(entry)
                 shadow.write('\n')
+
+    def create_nspawn_file(self, config):
+        nspawn_file_directory = os.path.join('/', 'etc', 'systemd', 'nspawn')
+
+        # For some reason the systemd RPM doesn't create /etc/systemd/nspawn/ by default
+        # so we need to make sure it's there.  Try to make it and fail gracefully if not.
+        try:
+            # Thanks http://stackoverflow.com/a/14364249/6124862 for this idiom
+            os.mkdir(nspawn_file_directory)
+        except OSError:
+            if not os.path.isdir(nspawn_file_directory):
+                raise
+
+        nspawn_file = os.path.join(nspawn_file_directory, "%s.nspawn" % config['name'])
+        if os.path.exists(nspawn_file):
+            log.warn("%s already exists. Cowardly refusing to overwrite it!" % nspawn_file)
+            return
+
+        with open(nspawn_file, 'w') as f:
+            f.write(config['nspawn_file'])
+        log.info("Wrote %s" % nspawn_file)

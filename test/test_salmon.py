@@ -57,7 +57,7 @@ class BuildCommandTest(unittest.TestCase):
             'subvolume': True,
             'disable_securetty': True,
             'root_password': 'hello',
-            'dns': '8.8.8.8',
+            'nspawn_file': '[Network]/nPrivate=no/n',
         }
 
         self.shadow = textwrap.dedent("""
@@ -253,6 +253,31 @@ class BuildCommandTest(unittest.TestCase):
             cmd_instance.set_root_password(self.good_config)
             out = m.content_out()
             self.assertIn('root:%s:16579:0:99999:7:::' % encrypted, out)
+
+    @mock.patch('os.mkdir')
+    @mock.patch('os.path.exists')
+    def test_create_nspawn_file(self, mock_exists, mock_mkdir):
+        args = self.dummy_parser.parse_args(['build'])
+        cmd_instance = self.cmd_class(args)
+
+        with open_mock() as m:
+            mock_mkdir.return_value = True
+            mock_exists.return_value = False
+            cmd_instance.create_nspawn_file(self.good_config)
+            out = m.content_out()
+            self.assertIn(self.good_config['nspawn_file'], out)
+
+    @mock.patch('os.mkdir')
+    @mock.patch('os.path.exists')
+    def test_create_nspawn_file(self, mock_exists, mock_mkdir):
+        args = self.dummy_parser.parse_args(['build'])
+        cmd_instance = self.cmd_class(args)
+
+        with open_mock() as m:
+            mock_mkdir.return_value = True
+            mock_exists.return_value = True
+            cmd_instance.create_nspawn_file(self.good_config)
+            self.assertEqual([], m.mock_calls)
 
 
 class DeleteCommandTest(unittest.TestCase):

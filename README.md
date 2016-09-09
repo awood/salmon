@@ -31,6 +31,10 @@ packages:
   - redhat-release
   - yum
   - https://dl.fedoraproject.org/pub/epel/epel-release-latest-7.noarch.rpm
+
+nspawn_file: |
+  [Network]
+  Private=no
 ```
 
 The file is in YAML and has several top-level settings:
@@ -52,6 +56,12 @@ There are also some optional settings:
   provide a plaintext string, a [modular crypt format](https://pythonhosted.org/passlib/modular_crypt_format.html)
   style string (i.e. what `passwd` generates), False for no password at all,
   or null to leave the file untouched.
+* `nspawn_file`: The contents of this value will be written verbatim to a
+  .nspawn file under `/etc/systemd/nspawn`.  See
+  [the documentation](https://www.freedesktop.org/software/systemd/man/systemd.nspawn.html)
+  for more detail on what you can put here.  It is also convenient to use the
+  YAML [indented delimiting](https://en.wikipedia.org/wiki/YAML#Indented_delimiting)
+  feature.
 
 The `repos` section can have multiple sub-sections.  Each sub-section should be
 a repo ID and then underneath that repo ID, you may define any option that DNF
