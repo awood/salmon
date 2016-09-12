@@ -217,7 +217,7 @@ class DeleteCommand(BaseCommand):
             output = subprocess.check_output(cmd)
             log.info('`%s` returned "%s"' % (" ".join(cmd), output))
 
-        if self.config['nspawn_file']:
+        if self.config.setdefault('nspawn_file', None):
             nspawn_file = os.path.join('/', 'etc', 'systemd', 'nspawn', '%s.nspawn' % self.config['name'])
             try:
                 os.unlink(nspawn_file)
