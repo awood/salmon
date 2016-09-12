@@ -16,13 +16,16 @@ setup(
     version='1.0',
     description='systemd nspawn container tool',
     author='Alex Wood',
+    author_email='awood@redhat.com',
     license='GPLv3',
     packages=[
         'salmon',
     ],
-    scripts=[
-        'salmon.py',
-    ],
+    entry_points={
+        'console_scripts': [
+            'salmon = salmon.main:main'
+        ]
+    },
     tests_require=tests_require,
     install_requires=install_requires,
     test_suite='nose.collector',
