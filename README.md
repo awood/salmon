@@ -10,6 +10,12 @@ requirements.txt` before you get started. Salmon also requires the `python-dnf`
 package to be installed. You can install this via DNF: `sudo dnf install
 python-dnf`
 
+## Installing via DNF
+
+Salmon is also [available](https://copr.fedorainfracloud.org/coprs/awood/salmon/)
+in Fedora via COPR.  Run `dnf copr enable awood/salmon` and then
+`dnf install salmon` and it will be installed with all the require dependencies.
+
 ## Manifest Structure
 
 Let's look at an example
