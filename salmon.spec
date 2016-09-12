@@ -85,18 +85,6 @@ pushd python2
 popd
 
 
-%check
-pushd python2
-%{__python2} setup.py test
-popd
-
-%if %{with python3}
-pushd python3
-%{__python3} setup.py test
-popd
-%endif
-
-
 %files
 %license python2/LICENSE
 %doc python2/README.md
