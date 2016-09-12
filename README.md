@@ -14,7 +14,7 @@ python-dnf`
 
 Salmon is also [available](https://copr.fedorainfracloud.org/coprs/awood/salmon/)
 in Fedora via COPR.  Run `dnf copr enable awood/salmon` and then
-`dnf install salmon` and it will be installed with all the require dependencies.
+`dnf install salmon` and it will be installed with all the required dependencies.
 
 ## Manifest Structure
 
