@@ -23,8 +23,12 @@ Source0: %{name}-%{version}.tar.gz
 
 BuildArch: noarch
 BuildRequires: python2-devel
+BuildRequires: PyYAML
+BuildRequires: python2-dnf
 %if %{with python3}
 BuildRequires: python3-devel
+BuildRequires: python3-PyYAML
+BuildRequires: python3-dnf
 %endif # with python3
 
 Requires: python-dnf
