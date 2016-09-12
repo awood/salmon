@@ -13,7 +13,7 @@ tests_require = install_requires + [
 
 setup(
     name='salmon',
-    version='1.0',
+    version='1.0.0',
     description='systemd nspawn container tool',
     author='Alex Wood',
     author_email='awood@redhat.com',
