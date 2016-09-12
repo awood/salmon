@@ -13,7 +13,13 @@ Summary: systemd nspawn container creation tool
 
 License: GPLv3
 URL: https://github.com/awood/salmon
-Source0: https://github.com/awood/%{name}/archive/%{name}-%{version}-%{release}.tar.gz#/%{name}-%{version}-%{release}.tar.gz
+
+# Available from
+# https://github.com/awood/%{name}/archive/%{name}-%{version}-%{release}.tar.gz#/%{name}-%{version}.tar.gz
+
+# Tito places the release number in the Git tag, but we have no way of referencing just the pure release
+# number since in the RPM it's 1%{?dist}
+Source0: %{name}-%{version}.tar.gz
 
 BuildArch: noarch
 BuildRequires: python2-devel
@@ -22,7 +28,7 @@ BuildRequires: python3-devel
 %endif # with python3
 
 Requires: python-dnf
-Requires: PyYaml
+Requires: PyYAML
 
 %description
 Salmon is a tool for creating Systemd Nspawn containers.
