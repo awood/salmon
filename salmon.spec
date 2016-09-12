@@ -8,7 +8,7 @@
 
 Name: salmon
 Version: 1.0.0
-Release: 2%{?dist}
+Release: 3%{?dist}
 Summary: systemd nspawn container creation tool
 
 License: GPLv3
@@ -25,14 +25,16 @@ BuildArch: noarch
 BuildRequires: python2-devel
 BuildRequires: PyYAML
 BuildRequires: python2-dnf
+Requires: python2-dnf
+Requires: PyYAML
 %if %{with python3}
 BuildRequires: python3-devel
 BuildRequires: python3-PyYAML
 BuildRequires: python3-dnf
+Requires: python3-PyYAML
+Requires: python3-dnf
 %endif # with python3
 
-Requires: python-dnf
-Requires: PyYAML
 
 %description
 Salmon is a tool for creating Systemd Nspawn containers.
@@ -111,6 +113,9 @@ popd
 
 
 %changelog
+* Mon Sep 12 2016 Alex Wood <awood@redhat.com> 1.0.0-3
+- Add some missing BuildRequires and Requires. (awood@redhat.com)
+
 * Mon Sep 12 2016 Alex Wood <awood@redhat.com> 1.0.0-2
 - Correct spec file errors. (awood@redhat.com)
 
