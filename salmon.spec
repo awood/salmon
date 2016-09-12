@@ -8,7 +8,7 @@
 
 Name: salmon
 Version: 1.0.0
-Release: 3%{?dist}
+Release: 4%{?dist}
 Summary: systemd nspawn container creation tool
 
 License: GPLv3
@@ -101,6 +101,9 @@ popd
 
 
 %changelog
+* Mon Sep 12 2016 Alex Wood <awood@redhat.com> 1.0.0-4
+- Do not run tests during a build. (awood@redhat.com)
+
 * Mon Sep 12 2016 Alex Wood <awood@redhat.com> 1.0.0-3
 - Add some missing BuildRequires and Requires. (awood@redhat.com)
 
