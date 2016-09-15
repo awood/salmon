@@ -23,7 +23,7 @@ Let's look at an example
 ```yaml
 name: "CentOS7_2-base"
 destination: "/var/lib/machines"
-as_subvolume: True
+subvolume: True
 disable_securetty: True
 
 repos:
